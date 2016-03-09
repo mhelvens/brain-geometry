@@ -1,0 +1,119 @@
+@import "./bootstrap.scss";
+
+////////////////////////////////////////////////////////////////////////////////
+
+/* golden-layout content panels */
+.lm_content {
+	background-color: white;
+}
+
+/* make splitter handles smaller so as not to interfere with adjacent scroll-bars */
+.lm_splitter.lm_horizontal .lm_drag_handle { width:  8px !important; left: -3px !important; }
+.lm_splitter.lm_vertical   .lm_drag_handle { height: 8px !important; top:  -3px !important; }
+
+/* allow an element inside an .lm_content with overflow-y:scroll to have a position:absolute */
+.lm_item_container {
+	position: relative;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+html, body {
+	position: absolute;
+	top:        0;
+	left:       0;
+	padding:    0;
+	margin:     0;
+	min-width:  100%;
+	min-height: 100%;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+div.inner-panel {
+	border: solid 1px black;
+	border-radius: 3px;
+	overflow: hidden;
+}
+
+div.inner-panel > * {
+	margin: -1px;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+div.icon {
+	display:         inline-block;
+	background:      no-repeat center;
+	background-size: contain;
+	min-width:       3em;
+	min-height:      3em;
+	max-width:       3em;
+	max-height:      3em;
+}
+
+span.icon {
+	display:         inline-block;
+	background:      no-repeat center;
+	background-size: contain;
+	vertical-align:  baseline !important;
+	min-width:       1.8em;
+	min-height:      1.8em;
+	max-width:       1.8em;
+	max-height:      1.8em;
+	margin:         -0.4em;
+}
+
+span.icon-medium {
+	min-width:  2em;
+	min-height: 2em;
+	max-width:  2em;
+	max-height: 2em;
+	margin:    -0.4em;
+}
+
+span.icon-in-button {
+	min-width:   1.6em;
+	min-height:  1.6em;
+	max-width:   1.6em;
+	max-height:  1.6em;
+	margin-top:    0;
+	margin-bottom: 0;
+}
+
+span.icon-small {
+	min-width:       1.2em;
+	min-height:      1.2em;
+	max-width:       1.2em;
+	max-height:      1.2em;
+	margin:         -0.1em;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+.resource-view {
+	display:         flex;
+	align-items:     center;
+	justify-content: space-between;
+	border:          solid 1px #999;
+	padding:         10px;
+	cursor:          pointer;
+}
+
+.resource-view > div.text-content {
+	display:    block;
+	margin:     0 0.8em;
+	text-align: center;
+}
+
+.resource-view > a.link {
+	align-self: flex-start;
+	min-width:  1em;
+}
+
+.resource-view > div.icon         { flex: 0 0 auto }
+.resource-view > div.text-content { flex: 1 1 auto }
+.resource-view > div.buttons      { flex: 0 0 auto }
+.resource-view > a.link           { flex: 0 0 auto }
+
+////////////////////////////////////////////////////////////////////////////////
