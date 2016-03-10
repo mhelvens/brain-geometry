@@ -5,7 +5,7 @@ import THREE          from './libs/three.es6.js';
 import {getHsvGolden} from 'golden-colors';
 
 /* local imports */
-import {or} from './util/misc.es6.js';
+import manifest from './geometries/BigrBrainAtlasManifest.es6.js';
 
 /* styling */
 import './index.scss';
@@ -41,11 +41,13 @@ import './index.scss';
 
 
 		/* keep track of regions and geometries */
-		let [brainMaskRegion, ...regions] = require('./geometries/BrainAtlasManifest_BdB.es6.js').default;
-		let atlasRegions = {
-			'Manual':  regions.filter(r => r.atlas === 'Manual'),
-			'Desikan': regions.filter(r => r.atlas === 'Desikan')
-		};
+		let [brainMaskRegion, ...regions] = manifest;
+		let atlasRegions = {};
+		for (let region of regions) {
+			if (!atlasRegions[region.atlas]) { atlasRegions[region.atlas] = [] }
+			atlasRegions[region.atlas].push(region);
+		}
+
 
 		/* set up the canvas and all the 3D stuff */
 		let three = await (async() => {
@@ -127,35 +129,25 @@ import './index.scss';
 			result.controls.keys = [ 65, 83, 68 ];
 			result.controls.addEventListener( 'change', result.render );
 
-			result.brainMaskObject = await result.loadObj(require('file!./geometries/BrainMask_18_20_0_160_199_153.obj'), {
-				color  : 0xffffff,
-				opacity: 0.2,
-				offset : { x: 18, y: 20, z: 0 },
-				renderOrder: 1000
-			});
-			result.scene.add(result.brainMaskObject);
-
-			result.controls.target = result.brainMaskObject.userData.center;
-			Object.assign(result.camera.position, result.brainMaskObject.userData.center);
-
 			result.renderer = new THREE.WebGLRenderer();
 			result.renderer.setPixelRatio(window.devicePixelRatio);
 			result.renderer.setSize(mainPanel.width(), mainPanel.height());
 			mainPanel.append(result.renderer.domElement);
 
 			$(window).resize(() => {
-				windowHalfX = mainPanel.width() / 2;
-				windowHalfY = mainPanel.height() / 2;
-				result.camera.aspect = mainPanel.width() / mainPanel.height();
-				result.camera.updateProjectionMatrix();
-				result.renderer.setSize(mainPanel.width(), mainPanel.height());
-				result.controls.handleResize();
+				setTimeout(() => {
+					windowHalfX = mainPanel.width() / 2;
+					windowHalfY = mainPanel.height() / 2;
+					result.camera.aspect = mainPanel.width() / mainPanel.height();
+					result.camera.updateProjectionMatrix();
+					result.renderer.setSize(mainPanel.width(), mainPanel.height());
+					result.controls.handleResize();
+					result.render();
+				}, 200);
 			});
 
 			animate();
 			result.render();
-			result.camera.position.x -= 400;
-			result.camera.rotation.x = 90 * Math.PI / 180;
 
 			return result;
 
@@ -166,29 +158,120 @@ import './index.scss';
 		leftPanel.css('overflow-y', 'scroll');
 
 		for (let [atlas, regions] of Object.entries(atlasRegions)) {
-			$(` <h3 style="margin: 2px">${atlas}</h3> `).appendTo(leftPanel);
 			let checkboxListElement = $(`<ul class="list-group">`).appendTo(leftPanel);
+			let title = $(`
+				<li class="list-group-item" style="margin: 0; border-color: transparent;">
+					<label>
+						<input type="checkbox" title="Select All" />
+						<h3 style="margin: 2px; display: inline; font-weight: bold;">
+							${atlas}
+						</h3>
+					</label>
+				</li>
+			`).appendTo(checkboxListElement);
+			let selectAllCheckbox = title.find('input[type="checkbox"]');
+			let checkboxCount = 0,
+			    checkCount = 0;
 			for (let region of regions) {
+				region.color = getHsvGolden(0.8, 0.8).toRgbString();
 				region.element = $(`
-					<li class="list-group-item checkbox" style="margin: 0;">
-						<label><input type="checkbox" /> ${region.region}</label>
+					<li class="list-group-item" style="margin: 0; position: relative;">
+						<div class="progressbar" style="z-index: 0; position: absolute; top: 0; bottom: 0; left: 0; width: 0; background-color: ${region.color};"></div>
+						<div class="progressbar-fader" style="z-index: 1; position: absolute; top: 0; bottom: 0; left: 0; right: 0; background-color: white; opacity: 0.5"></div>
+						<label style="z-index: 2; position: relative;"><input type="checkbox" /> ${region.region}</label>
 					</li>
 				`).appendTo(checkboxListElement);
 				region.checkbox = region.element.find('input[type="checkbox"]');
+				region.progressBar = region.element.find('.progressbar');
+				let object3DPromise;
 				region.checkbox.on('change', async() => {
-					if (!region.object3D) {
-						region.object3D = await three.loadObj(region.file, {
+					let checked = region.checkbox.prop('checked');
+					checkCount += (checked ? 1 : -1);
+					selectAllCheckbox.prop('checked', checkCount === checkboxCount);
+					if (!object3DPromise) {
+						region.checkbox.prop('disabled', true);
+						object3DPromise = three.loadObj(region.file, {
 							offset:      region.offset,
 							renderOrder: 0,
-							color:       getHsvGolden(0.8, 0.8).toRgbString(),
-							opacity:     0.9
+							color:       region.color,
+							opacity:     0.9,
+							onProgress: (e) => {
+								region.progressBar.css({ width: `${e.total/e.loaded*100}%` });
+							}
 						});
-						three.scene.add(region.object3D);
+						region.object3D = await object3DPromise.then((object3D) => {
+							three.scene.add(object3D);
+							return object3D;
+						});
+						region.checkbox.prop('disabled', false);
 					}
-					region.object3D.visible = region.checkbox.prop('checked');
+					await object3DPromise;
+					region.object3D.visible = checked;
+					region.progressBar.css({ display: checked ? 'block' : 'none' });
 					three.render();
 				});
+				checkboxCount += 1;
 			}
+			selectAllCheckbox.on('change', () => {
+				for (let region of regions) {
+					region.checkbox.prop('checked', selectAllCheckbox.prop('checked'));
+				}
+				for (let region of regions) {
+					region.checkbox.change();
+				}
+			});
+		}
+
+
+		/* load brain mask */
+		{
+			brainMaskRegion.element = $(`
+				<ul class="list-group">
+					<li class="list-group-item" style="margin: 0; border-color: transparent;">
+						<h3 style="margin: 2px; display: inline; font-weight: bold;">
+							Miscellaneous
+						</h3>
+					</li>
+					<li class="list-group-item" style="margin: 0; position: relative;">
+						<div class="progressbar" style="z-index: 1; position: absolute; top: 0; bottom: 0; left: 0; width: 0; background-color: #CCCCCC;"></div>
+						<label style="z-index: 2; position: relative;">
+							<input type="checkbox" title="Select All" />
+								Brain Outline
+						</label>
+					</li>
+				</ul>
+			`).prependTo(leftPanel);
+			brainMaskRegion.checkbox = brainMaskRegion.element.find('input[type="checkbox"]');
+			brainMaskRegion.progressBar = brainMaskRegion.element.find('.progressbar');
+			let object3DPromise;
+			brainMaskRegion.checkbox.on('change', async() => {
+				let checked = brainMaskRegion.checkbox.prop('checked');
+				if (!object3DPromise) {
+					brainMaskRegion.checkbox.prop('disabled', true);
+					object3DPromise = three.loadObj(brainMaskRegion.file, {
+						offset:      brainMaskRegion.offset,
+						renderOrder: 1,
+						opacity:     0.2,
+						onProgress: (e) => {
+							brainMaskRegion.progressBar.css({ width: `${e.loaded/e.total*100}%` });
+						}
+					});
+					brainMaskRegion.object3D = await object3DPromise.then((object3D) => {
+						three.scene.add(object3D);
+						three.controls.target = object3D.userData.center;
+						Object.assign(three.camera.position, object3D.userData.center);
+						three.camera.position.x -= 400;
+						three.camera.rotation.x = 90 * Math.PI / 180;
+						return object3D;
+					});
+					brainMaskRegion.checkbox.prop('disabled', false);
+				}
+				await object3DPromise;
+				brainMaskRegion.object3D.visible = checked;
+				brainMaskRegion.progressBar.css({ display: checked ? 'block' : 'none' });
+				three.render();
+			});
+			brainMaskRegion.checkbox.prop('checked', true).change();
 		}
 
 
